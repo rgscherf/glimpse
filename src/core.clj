@@ -41,7 +41,7 @@
     Def              = <'This regulation concerns '> DefSymbol <'.'>
     <Rule>           = RuleExistence | RuleExistenceNum | RuleNumComparison
 
-    RuleExistence    = DataAccess <' must be present.'>
+    RuleExistence    = [Symbol | DataAccess] <' must have '> Symbol <'.'>
     RuleExistenceNum = [Symbol | DataAccess] <' must have '> Integer <' of '> Symbol+ <'.'>
 
     RuleNumComparison = DataAccess <' must be '> NumComparison Integer <'.'>
@@ -53,15 +53,20 @@
     DataAccess       = Symbol SubKeyAccess
     <SubKeyAccess>   = <'\\'s'> Symbol (SubKeyAccess)*
     Integer          = #'-?\\d+'
-    Symbol           = #'[A-Z][a-zA-Z_-]*'
-    DefSymbol        = #'[A-Z][a-zA-Z_-]*'"
+    Symbol           = #'\\*\\*[a-zA-Z_ -]*\\*\\*'
+    <DefSymbol>        = Symbol"
    :auto-whitespace whitespace))
 
+;; old symbol line
+;; Symbol           = #'[A-Z][a-zA-Z_-]*'
+;; old rule existence
+;; RuleExistence    = DataAccess <' must be present.'>
 
+(car-reg "**Car**'s **Antilock brakes** must have **Antilock brakes**." :start :RuleExistence)
 ;; TOKENIZING
-(def hanging-a #"\s+[Aa]\s+")
-(def hanging-the #"\s+[Tt]he\s+")
-(def hanging-and #"\s+[Aa]nd\s+")
+(def hanging-a #"\s*[Aa]\s+")
+(def hanging-the #"\s*[Tt]he\s+")
+(def hanging-and #"\s*[Aa]nd\s+")
 (def comma #",")
 
 (defn cleanup
@@ -76,25 +81,38 @@
   [str]
   (-> str cleanup car-reg))
 
+(defn parse-str-with-rule-tag
+  [str start-tag]
+  (-> str cleanup (car-reg :start start-tag)))
 
 ;; string testing
-(def ruledef "This regulation concerns a Car. ")
-(def rule-num-comparison "The Car's Crash-rating must be greater than 3.")
-(def rule-existence-num-str "The Car must have 2 of Antilock-brakes, Driver-side-airbag, and Rear-view-camera.")
-(def rule-existence-str "The Car's Antilock-brakes must be present.")
-
+(def ruledef "This regulation concerns a **Car**. ")
 (comment
-  (let [str-input (str/join [ruledef rule-existence-num-str])]
+  (let [str-input (str/join [ruledef ""])]
     (parse-str str-input))
   )
+
+(defn tags-for-rule-string
+  [start-tag rule-str]
+    (parse-str-with-rule-tag rule-str start-tag))
+  (comment
+    (tags-for-rule-string :RuleExistence "The **Car** must have **antilock brakes**." )
+    (tags-for-rule-string :RuleExistence "**Car** must have **Antilock brakes**." )
+    )
 
 
 ;; EVALUATION
 ;; All evaluation functions take a vec of [:ParserTag & rest]
 ;; :DataAccess
 (defn unpack-symbol-vec
-   [[_symbol-key keystr]]
-   (-> keystr str/lower-case keyword))
+  [[_symbol-key keystr]]
+  (-> keystr
+      ( str/replace "**" "")
+      (str/replace " " "-")
+      str/lower-case
+      keyword))
+  (comment
+    (unpack-symbol-vec [:Symbol "**Car**"]))
 
 (defn get-toplevel-data
   [env head-symbol]
@@ -106,15 +124,10 @@
         data-map (get-toplevel-data env head-symbol)]
     (get-in data-map
             (map unpack-symbol-vec rest))))
-(comment
-	(data-access-fn env [:Symbol "Car"])
-  (data-access-fn env [:DataAccess [:Symbol "Car"] [:Symbol "Second-row"] [:Symbol "Airbags"]])
-  )
-
-;; RuleExistence
-(defn rule-existence-fn
-  [_env [_tag result]]
-  result)
+  (comment
+  	(data-access-fn env (tags-for-rule-string :DataAccess "The **Car**'s **second row**"))
+    (data-access-fn env [:DataAccess [:Symbol "Car"] [:Symbol "second row"] [:Symbol "airbags"]])
+    )
 
 ;; NUMERIC COMPARISONS
 (defn num-compare-fn
@@ -129,16 +142,21 @@
   (parse-long int-str))
 
 (defn rule-num-comparison-fn
+  "Numeric comparison of two values, the first being data."
   [env [_ data-access comparison num]]
   (let [eval-data (data-access-fn env data-access)
         eval-comparison (num-compare-fn comparison)
         eval-num (integer-fn num)]
     (eval-comparison eval-data eval-num)))
 (comment
-  (let [rule-nc-data [:RuleNumComparison [:DataAccess [:Symbol "Car"] [:Symbol "Crash-rating"]] [:NCGT] [:Integer "3"]]]
-    (rule-num-comparison-fn env rule-nc-data)))
+	(rule-num-comparison-fn env
+                         (tags-for-rule-string
+                          :RuleNumComparison
+                          "The **Car**'s **crash rating** must be greater than 3."))
+  )
 
 (defn get-map-from-accessor-tag
+  "Retrieve a map from the env, either a top-level symbol or a DataAccess vec."
   [env accessor]
   (let [[a-head & _] accessor
         access-fn (match a-head
@@ -146,20 +164,33 @@
                     :DataAccess data-access-fn)]
     (access-fn env accessor)))
 (comment
-  (get-map-from-accessor-tag env [:DataAccess [:Symbol "Car"] [:Symbol "Second-row"]])
+  (get-map-from-accessor-tag env [:DataAccess [:Symbol "**Car**"] [:Symbol "**Antilock brakes**"]])
   (get-map-from-accessor-tag env [:Symbol "Car"]))
 
+;; RuleExistence
+(defn rule-existence-fn
+  "Test for the existence of a key in the map defined by data-access-vec"
+  [env [_tag data-access-vec test-key-vec]]
+  (let [data-object  (get-map-from-accessor-tag env data-access-vec)
+        test-key (unpack-symbol-vec test-key-vec)]
+    (get data-object test-key)))
+  (comment
+    (rule-existence-fn env [:RuleExistence [:DataAccess [:Symbol "**Car**"] [:Symbol "**second row**"]] [:Symbol "**airbags**"]]))
+    (rule-existence-fn env (tags-for-rule-string :RuleExistence "The **Car** must have **antilock brakes**."))
+    (rule-existence-fn env (tags-for-rule-string :RuleExistence "The **Car**'s **second row** must have **airbags**."))
+
+;; RuleExistenceNum
 (defn rule-existence-num-fn
   [env [_tag accessor num & symbols]]
   (let [data (get-map-from-accessor-tag env accessor)
         num-int (integer-fn num)
         ;; TODO: (>= num-int (length (filter #(existence data %) [accessor-values+])))
         ]))
-(comment
-  (let [rule-existence-num-tree
-        [:RuleExistenceNum [:Symbol "Car"] [:Integer "2"] [:Symbol "Antilock-brakes"] [:Symbol "Driver-side-airbag"] [:Symbol "Rear-view-camera"]]]
-    rule-existence-num-tree)
-  )
+  (comment
+    (let [rule-existence-num-tree
+          [:RuleExistenceNum [:Symbol "Car"] [:Integer "2"] [:Symbol "Antilock-brakes"] [:Symbol "Driver-side-airbag"] [:Symbol "Rear-view-camera"]]]
+      rule-existence-num-tree)
+    )
 
 ;; test types to think about
 ;; - existence

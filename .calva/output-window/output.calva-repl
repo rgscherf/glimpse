@@ -27,3 +27,44 @@ and then add "**/.calva/repl.calva-repl" to your ".gitignore" file.
 
 clj꞉user꞉> 
 clj꞉hello꞉> 
+clj꞉user꞉> 
+clj꞉core꞉> 
+; Execution error (PatternSyntaxException) at java.util.regex.Pattern/error (Pattern.java:2204).
+; Illegal character range near index 13
+; \*\*[a-zA-Z_- ]*\*\*
+;              ^
+clj꞉core꞉> 
+; Execution error (PatternSyntaxException) at java.util.regex.Pattern/error (Pattern.java:2204).
+; Illegal character range near index 14
+; \*\*[a-zA-Z_-\s]*\*\*
+;               ^
+clj꞉core꞉> 
+; Execution error (PatternSyntaxException) at java.util.regex.Pattern/error (Pattern.java:2204).
+; Illegal character range near index 13
+; \*\*[a-zA-Z_- ]*\*\*
+;              ^
+clj꞉core꞉> 
+; Execution error (IllegalArgumentException) at instaparse.gll/-full-parse (gll.clj:163).
+; No matching clause:
+clj꞉core꞉> 
+; Execution error (IllegalArgumentException) at instaparse.gll/-full-parse (gll.clj:163).
+; No matching clause:
+clj꞉core꞉> 
+; Syntax error (ClassNotFoundException) compiling at (src/core.clj:0:0).
+; brakes**.
+clj꞉core꞉> 
+; Execution error (IllegalArgumentException) at core/get-map-from-accessor-tag$fn$fn (REPL:150).
+; No matching clause: :RuleExistence
+clj꞉core꞉> 
+; Execution error (IllegalArgumentException) at core/get-map-from-accessor-tag$fn$fn (REPL:150).
+; No matching clause: :RuleExistence
+clj꞉core꞉> 
+; Execution error (IllegalArgumentException) at core/get-map-from-accessor-tag$fn$fn (REPL:150).
+; No matching clause: :RuleExistence
+clj꞉core꞉> 
+; Execution error (ArityException) at core/tags-for-rule-string (REPL:97).
+; Wrong number of args (3) passed to: core/parse-str-with-rule-tag
+clj꞉core꞉> 
+; Syntax error compiling at (src/core.clj:0:0).
+; Unable to resolve symbol: str-input in this context
+clj꞉core꞉> 
