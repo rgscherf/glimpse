@@ -68,3 +68,41 @@ clj꞉core꞉> 
 ; Syntax error compiling at (src/core.clj:0:0).
 ; Unable to resolve symbol: str-input in this context
 clj꞉core꞉> 
+clj꞉tests꞉> 
+clj꞉core꞉> 
+; Syntax error compiling at (src/core.clj:216:17).
+; Unable to resolve symbol: resolve-data-access in this context
+clj꞉core꞉> 
+; Syntax error compiling at (src/core.clj:205:23).
+; Unable to resolve symbol: resolve-clause in this context
+clj꞉core꞉> 
+; Execution error (IllegalArgumentException) at core/resolve-clause-vec$fn$fn$fn$fn$fn (REPL:216).
+; No matching clause: :NCGT
+clj꞉core꞉> 
+; Execution error (IllegalArgumentException) at core/resolve-clause-vec$fn$fn$fn$fn$fn (REPL:216).
+; No matching clause: :NCGT
+clj꞉core꞉> 
+; Execution error (IllegalArgumentException) at core/resolve-clause-vec$fn$fn$fn$fn$fn (REPL:216).
+; No matching clause: :NCGT
+clj꞉core꞉> 
+; Execution error (IllegalArgumentException) at core/resolve-clause-vec$fn$fn$fn$fn$fn (REPL:216).
+; No matching clause: :NCGT
+clj꞉core꞉> 
+; Execution error (IllegalArgumentException) at core/resolve-clause-vec$fn$fn$fn$fn$fn (REPL:216).
+; No matching clause: :NCGT
+clj꞉core꞉> 
+; Execution error (IllegalArgumentException) at core/resolve-clause-vec$fn$fn$fn$fn$fn (REPL:216).
+; No matching clause: :NumComparison
+clj꞉core꞉> 
+; Execution error (IllegalArgumentException) at core/resolve-clause-vec$fn$fn$fn$fn$fn (REPL:216).
+; No matching clause: :NumComparison
+clj꞉core꞉> 
+; Execution error (ClassCastException) at core/resolve-rule-num-comparison (REPL:151).
+; class java.lang.Boolean cannot be cast to class clojure.lang.IFn (java.lang.Boolean is in module java.base of loader 'bootstrap'; clojure.lang.IFn is in unnamed module of loader 'app')
+clj꞉core꞉> 
+; Execution error (ClassCastException) at core/resolve-rule-num-comparison (REPL:151).
+; class java.lang.Boolean cannot be cast to class clojure.lang.IFn (java.lang.Boolean is in module java.base of loader 'bootstrap'; clojure.lang.IFn is in unnamed module of loader 'app')
+clj꞉core꞉> 
+; Execution error (ClassCastException) at core/resolve-rule-num-comparison (REPL:152).
+; class java.lang.Boolean cannot be cast to class clojure.lang.IFn (java.lang.Boolean is in module java.base of loader 'bootstrap'; clojure.lang.IFn is in unnamed module of loader 'app')
+clj꞉core꞉> 
