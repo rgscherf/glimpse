@@ -3,6 +3,15 @@
   					[clojure.core.match :refer [match]]
             [clojure.string :as str]))
 
+;; Glimpse is a small CNL for validating the contents of key-value maps.
+;; Its syntax is meant to look like natural English, while:
+;;  - evaluating unambiguously, and
+;;  - maintaining a tiny "surface area" to facilitate learning.
+;; Glimpse is formatting-sensitive. That is,
+;;  - **bold text** indicates value access.
+;;  - *italic text* is a comment, and will be ignored by the compiler.
+
+
 ;; It might look like:
 ;; This regulation concerns a Car.
 ;; A Car must have a Driver-side-airbag.
