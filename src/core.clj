@@ -52,20 +52,25 @@
     DataAccess        = Symbol | (Symbol SubKeyAccess)
     <SubKeyAccess>    = <'\\'s'> Symbol (SubKeyAccess)*
     Integer           = #'-?\\d+'
-    Symbol            = #'\\*\\*[a-zA-Z_ -]*\\*\\*'
+    Symbol            = #'\\*\\*[a-zA-Z -]*\\*\\*'
     <DefSymbol>       = Symbol"
    :auto-whitespace whitespace))
+
+"Definitions
+ **NOUN** is _description, sometimes multiline with bullets_"
 
 ;; TOKENIZING
 (def hanging-a #"\s*[Aa]\s+")
 (def hanging-the #"\s*[Tt]he\s+")
 (def hanging-and #"\s*[Aa]nd\s+")
 (def comma #",")
+(def code-comment #"_.*?_")
 
 (defn cleanup
   [input-str]
   (-> input-str
   		(str/replace comma "")
+      (str/replace code-comment "")
       (str/replace hanging-and " ")
       (str/replace hanging-the " ")
       (str/replace hanging-a " ")))
@@ -89,6 +94,7 @@
     (tags-for-rule-string :RuleExistence "**Car** must have **Antilock brakes**." )
     )
 
+(parse-str "_Hello_")
 (defn resolve-symbol
   [_env [_symbol-key keystr]]
   (-> keystr
@@ -141,6 +147,31 @@
     (resolve-rule-num-comparison env (tags-for-rule-string :RuleNumComparison "The **Car**'s **crash rating** must be greater than 3."))
     )
 
+(defn truthy?
+  [x]
+  (not (or (nil? x) (false? x))))
+  (comment
+    (truthy? 3)
+    (truthy? nil)
+    (truthy? false)
+    )
+
+(defn resolve-rule-existence-num
+  [env [_tag data-access num & access-key-symbols]]
+  (let [data-to-access (resolve-data-access env data-access)]
+    (->> access-key-symbols
+         (map #(resolve-symbol env %))
+         (map #(get data-to-access %))
+         (filter truthy?)
+         count
+         (<= (resolve-integer env num)))))
+(comment
+  (resolve-rule-existence-num env
+   (tags-for-rule-string :RuleExistenceNum "The **Car** must have 2 of **superlock brakes**, **electronic stability control**, and **drivers side airbag**."))
+  (resolve-rule-existence-num env
+   (tags-for-rule-string :RuleExistenceNum "The **Car** must have 2 of **antilock brakes**, **electronic stability control**, and **drivers side airbag**."))
+  )
+
 (defn resolve-clause-vec
   "The first element of the clause vec is a keyword denoting its parse rule.
   Every parse rule corresponds to a resolve-[clause-name] fn."
@@ -151,14 +182,11 @@
      :NumComparison       resolve-num-comparison
      :DataAccess          resolve-data-access
      :RuleNumComparison   resolve-rule-num-comparison
-     :RuleExistence       resolve-rule-existence)
+     :RuleExistence       resolve-rule-existence
+     :RuleExistenceNum    resolve-rule-existence-num)
    env clause))
   (comment
     (resolve-clause-vec env [:Symbol "**Car**"])
     (resolve-clause-vec env (tags-for-rule-string :DataAccess "**Car**"))
     (resolve-clause-vec env (tags-for-rule-string :DataAccess "**Car**'s **second row**"))
     )
-
-;; TODO
-;; resolve-rule-existence-num
-;; date comparisons?
