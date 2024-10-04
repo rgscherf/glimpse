@@ -2,7 +2,7 @@
 
 Glimpse is a small CNL for validating the contents of key-value maps. Its syntax is meant to look like natural English, while evaluating unambiguously and maintaining a tiny "surface area" to facilitate learning.
 
-Glimpse mixes semantic and descriptive meaning, similar to a literate programming style. The idea is to use formal language where values must be calculated, and drop down to natural language where more expressivity is required. If the reader knows that they're looking at a Glimpse document (and not a regular English one), then there should be clear visual markers for whether a given passage is formal or natural. Right now, _italics_ mean natural language.
+Glimpse mixes semantic and descriptive meaning, similar to a literate programming style. The idea is to use formal language where values must be calculated, and drop down to natural language wherever more expressivity is required. If the reader knows that they're looking at a Glimpse document (and not a regular English one), then there should be clear visual markers for whether a given passage is formal or natural. Right now, _italics_ mean natural language.
 
 Here is a simple Glimpse regulation:
 

@@ -3,16 +3,10 @@
   					[clojure.core.match :refer [match]]
             [clojure.string :as str]))
 
-;; Glimpse is a small CNL for validating the contents of key-value maps.
-;; Its syntax is meant to look like natural English, while:
-;;  - evaluating unambiguously, and
-;;  - maintaining a tiny "surface area" to facilitate learning.
-;; Glimpse is formatting-sensitive. That is,
-;;  - **bold text** indicates value access.
-;;  - *italic text* is a comment, and will be ignored by the compiler.
+(declare resolve-clause-vec)
 
+;; Target reg
 
-;; It might look like:
 "# Car safety regulation
 
  ## Definitions
@@ -27,7 +21,7 @@
  _Additionally, the Province requires that cars perform as expected in crashes. There are two measures, both of which must be met._
  The **Car**'s **crash rating** must be greater than 3. Also, the **Car** must have a **driver side airbag**."
 
-(declare resolve-clause-vec)
+;; Default environment
 
 (def env
   {:errors []
@@ -39,41 +33,44 @@
          :second-row                   {:airbags        "I have airbags"
                                         :shoulder_belts false }}})
 
-;; THE PARSER
+;; Parser
+
 (def whitespace
   (insta/parser
     "whitespace = #'\\s+'"))
+
 (def car-reg
   (insta/parser
-   "<Reg>              = Headline Definitions <'## Rules'> Rule*
-    <Headline>         = <'# '> <Symbol>
-    Definitions        = <'## Definitions'> ForwardDeclaration+
-    <ForwardDeclaration> = DataAccess <' '?>
-    NestedFwdDeclaration = DataAccess <' contains:'> NestedFwdDeclarationSubkey+
+   "<Reg>                        = Headline Definitions <'## Rules'> Rule*
+    <Headline>                   = <'# '> <Symbol>
+    Definitions                  = <'## Definitions'> ForwardDeclaration+
+
+    <ForwardDeclaration>         = DataAccess <' '?>
+    NestedFwdDeclaration         = DataAccess <' contains:'> NestedFwdDeclarationSubkey+
     <NestedFwdDeclarationSubkey> = <'- '> DataAccess
-    Def              = <'This regulation concerns '> DefSymbol <'.'>
-    <Rule>           = RuleExistence | RuleExistenceNum | RuleNumComparison
 
-    RuleExistence    = DataAccess <' must have '> Symbol <'.'>
-    RuleExistenceNum = DataAccess <' must have '> Integer <' of '> Symbol+ <'.'>
+    Def                          = <'This regulation concerns '> DefSymbol <'.'>
+    <Rule>                       = RuleExistence | RuleExistenceNum | RuleNumComparison
 
-    RuleNumComparison = DataAccess <' must be '> NumComparison Integer <'.'>
-    NumComparison     = NCLT | NCEq | NCGT
-    NCLT              = <'less than '>
-    NCEq              = <'equal to '>
-    NCGT              = <'greater than '>
+    RuleExistence                = DataAccess <' must have '> Symbol <'.'>
+    RuleExistenceNum             = DataAccess <' must have '> Integer <' of '> Symbol+ <'.'>
 
-    DataAccess        = Symbol | (Symbol SubKeyAccess)
-    <SubKeyAccess>    = <'\\'s'> Symbol (SubKeyAccess)*
-    Integer           = #'-?\\d+'
-    Symbol            = #'\\*\\*[a-zA-Z -]*\\*\\*'
-    <DefSymbol>       = Symbol"
+    RuleNumComparison             = DataAccess <' must be '> NumComparison Integer <'.'>
+    NumComparison                 = NCLT | NCEq | NCGT
+    NCLT                          = <'less than '>
+    NCEq                          = <'equal to '>
+    NCGT                          = <'greater than '>
+
+    DataAccess                    = Symbol | (Symbol SubKeyAccess)
+    <SubKeyAccess>                = <'\\'s'> Symbol (SubKeyAccess)*
+    Integer                       = #'-?\\d+'
+    Symbol                        = #'\\*\\*[a-zA-Z -]*\\*\\*'
+    <DefSymbol>                   = Symbol"
    :auto-whitespace whitespace))
 
-"Definitions
- **NOUN** is _description, sometimes multiline with bullets_"
 
-;; TOKENIZING
+;; Tokenizing
+
 (def hanging-a #"\s*[Aa]\s+")
 (def hanging-the #"\s*[Tt]he\s+")
 (def hanging-and #"\s*[Aa]nd\s+")
@@ -101,9 +98,6 @@
   [str start-tag]
   (-> str cleanup (car-reg :start start-tag)))
 
-;; string testing
-(def ruledef "This regulation concerns a **Car**. ")
-
 (defn tags-for-rule-string
   [start-tag rule-str]
     (parse-str-with-rule-tag rule-str start-tag))
@@ -112,7 +106,6 @@
     (tags-for-rule-string :RuleExistence "**Car** must have **Antilock brakes**." )
     )
 
-(parse-str "_Hello_")
 (defn resolve-symbol
   [_env [_symbol-key keystr]]
   (-> keystr
@@ -131,7 +124,7 @@
   (comment
     (resolve-data-access env (tags-for-rule-string :DataAccess "**Car**"))
     (resolve-data-access env (tags-for-rule-string :DataAccess "**Car**'s **second row**"))
-(tags-for-rule-string :DataAccess "**Car**'s **second row**")
+    (tags-for-rule-string :DataAccess "**Car**'s **second row**")
     )
 
 (defn resolve-rule-existence
@@ -208,14 +201,15 @@
    env
    data-accesses))
   (comment
-( tags-for-rule-string :Definitions "## Definitions
+    (tags-for-rule-string :Definitions "## Definitions
                                           **Car** _is defined as a vehicle with 4 wheels._
                                           **Hello** _hello_")
-(tags-for-rule-string :Definitions "## Definitions A **Car** _is defined as a vehnicle with 4 wheels._")
+    (tags-for-rule-string :Definitions "## Definitions A **Car** _is defined as a vehnicle with 4 wheels._")
     (resolve-forward-declaration env
-     ( tags-for-rule-string :Definitions "## Definitions
+                                 (tags-for-rule-string :Definitions "## Definitions
                                           **Car**_is defined as a vehicle with 4 wheels._
-                                          **Hello** ")))
+                                          **Hello** "))
+    )
 
 (defn upsplice-data-access
   [top-access bottom-access]
@@ -231,25 +225,21 @@
   ;; then feed it into resolve-forward-declaration.
   (let [data-accesses (map #(upsplice-data-access top-access %) rest)]
     (map #(resolve-clause-vec env %) data-accesses)))
-
 (comment
   (resolve-clause-vec env
                       (upsplice-data-access
                        (tags-for-rule-string :DataAccess "**Car**")
                        (tags-for-rule-string :DataAccess "**rear view camera**")))
-  (resolve-nested-forward-declaration
-   env
-   (tags-for-rule-string :NestedFwdDeclaration "A **Car** contains:
-        - **crash rating**
-    - **rear view camera**"))
-  (resolve-nested-forward-declaration
-   env
-   [:NestedFwdDeclaration
-    (tags-for-rule-string :DataAccess "**Car**")
-    (tags-for-rule-string :DataAccess "**crash rating**")
-    (tags-for-rule-string :DataAccess "**rear view camera**")])
+  (resolve-nested-forward-declaration env
+                                      (tags-for-rule-string :NestedFwdDeclaration "A **Car** contains:
+                                        - **crash rating**
+                                        - **rear view camera**"))
+  (resolve-nested-forward-declaration env
+                                      [:NestedFwdDeclaration
+                                       (tags-for-rule-string :DataAccess "**Car**")
+                                       (tags-for-rule-string :DataAccess "**crash rating**")
+                                       (tags-for-rule-string :DataAccess "**rear view camera**")])
   )
-
 
 
 (defn resolve-clause-vec
