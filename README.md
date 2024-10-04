@@ -14,9 +14,9 @@ Here is a simple Glimpse regulation:
 A **Car** _is a vehicle with four wheels._
 A **Car** contains:
 
-- **antilock brakes** _, which increases safety in high-speed situations._
-- a **rear-view camera** _, which increases safety in low-speed situations._
-- a **crash rating** _, on a scale of 1-5, assigned by the NTSB._
+- **antilock brakes**, _which increases safety in high-speed situations._
+- a **rear-view camera**, _which increases safety in low-speed situations._
+- a **crash rating**, _on a scale of 1-5, assigned by the NTSB._
 
 ## Rules
 

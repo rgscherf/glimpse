@@ -79,16 +79,21 @@
 (def comma #",")
 (def code-comment #"_.*?_")
 
+(def replacement-regexes
+  [hanging-a
+   hanging-the
+   hanging-and
+   hanging-also
+   comma
+   code-comment])
+
 (defn cleanup
   [input-str]
-  (-> input-str
-  		(str/replace comma "")
-      (str/replace code-comment "")
-      (str/replace hanging-and " ")
-      (str/replace hanging-also " ")
-      (str/replace hanging-the " ")
-      (str/replace hanging-a " ")
-      (str/replace multi-space "")))
+  (let [cleaned-except-for-spacing
+        (reduce #(str/replace %1 %2 "")
+                input-str
+                replacement-regexes)]
+    (str/replace cleaned-except-for-spacing multi-space " ")))
 
 (defn parse-str
   [str]
