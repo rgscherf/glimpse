@@ -13,11 +13,20 @@
 
 
 ;; It might look like:
-;; This regulation concerns a Car.
-;; A Car must have a Driver-side-airbag.
-;; A Car must have 2 of Antilock-brakes, Electronic-stability-control, and a Rear-view-camera
-;; Every Car's Second-row must have one of Airbags OR Shoulder-belts.
-;; If the Car has a Third-row, every Car's Third-Row must have one of Airbags OR Shoulder-belts.
+"# Car safety regulation
+
+ ## Definitions
+ A **Car** _is a vehicle with four wheels._
+ A **Car** contains:
+   - **antilock brakes** _, which increases safety in high-speed situations._
+   - a **rear-view camera** _, which increases safety in low-speed situations._
+   - a **crash rating** _, on a scale of 1-5, assigned by the NTSB._
+
+ ## Rules
+ A **Car** must have 2 of **antilock brakes**, **electronic-stability-control**, and a **rear view mirror** _in order to promote balanced safety_.
+ _Additionally, the Province requires that cars perform as expected in crashes. There are two measures, both of which must be met._
+ The **Car**'s **crash rating** must be greater than 3. Also, the **Car** must have a **driver side airbag**."
+
 (declare resolve-clause-vec)
 
 (def env
@@ -36,7 +45,12 @@
     "whitespace = #'\\s+'"))
 (def car-reg
   (insta/parser
-   "<Reg>            = Def+ Rule*
+   "<Reg>              = Headline Definitions <'## Rules'> Rule*
+    <Headline>         = <'# '> <Symbol>
+    Definitions        = <'## Definitions'> ForwardDeclaration+
+    <ForwardDeclaration> = DataAccess <' '?>
+    NestedFwdDeclaration = DataAccess <' contains:'> NestedFwdDeclarationSubkey+
+    <NestedFwdDeclarationSubkey> = <'- '> DataAccess
     Def              = <'This regulation concerns '> DefSymbol <'.'>
     <Rule>           = RuleExistence | RuleExistenceNum | RuleNumComparison
 
@@ -63,6 +77,8 @@
 (def hanging-a #"\s*[Aa]\s+")
 (def hanging-the #"\s*[Tt]he\s+")
 (def hanging-and #"\s*[Aa]nd\s+")
+(def hanging-also #"\s*[Aa]lso\s+")
+(def multi-space #"\s{2,}")
 (def comma #",")
 (def code-comment #"_.*?_")
 
@@ -72,8 +88,10 @@
   		(str/replace comma "")
       (str/replace code-comment "")
       (str/replace hanging-and " ")
+      (str/replace hanging-also " ")
       (str/replace hanging-the " ")
-      (str/replace hanging-a " ")))
+      (str/replace hanging-a " ")
+      (str/replace multi-space "")))
 
 (defn parse-str
   [str]
@@ -90,7 +108,7 @@
   [start-tag rule-str]
     (parse-str-with-rule-tag rule-str start-tag))
   (comment
-    (tags-for-rule-string :RuleExistence "The **Car** must have **antilock brakes**." )
+    (tags-for-rule-string :RuleExistence "_This car is a car_ The **Car** must_must have_ have **antilock brakes**." )
     (tags-for-rule-string :RuleExistence "**Car** must have **Antilock brakes**." )
     )
 
@@ -113,6 +131,7 @@
   (comment
     (resolve-data-access env (tags-for-rule-string :DataAccess "**Car**"))
     (resolve-data-access env (tags-for-rule-string :DataAccess "**Car**'s **second row**"))
+(tags-for-rule-string :DataAccess "**Car**'s **second row**")
     )
 
 (defn resolve-rule-existence
@@ -172,18 +191,81 @@
    (tags-for-rule-string :RuleExistenceNum "The **Car** must have 2 of **antilock brakes**, **electronic stability control**, and **drivers side airbag**."))
   )
 
+(defn forward-declaration-error-string
+  [data-access]
+  (str "Forward declaration for " data-access " in Definitions, but that structure wasn't found in the env!"))
+
+(defn resolve-forward-declaration
+  [env [_tag & data-accesses]]
+  (reduce
+   (fn [acc x]
+     (if
+      (nil? (resolve-clause-vec env x))
+       (assoc acc :errors
+              (cons (forward-declaration-error-string x)
+                    (:errors acc)))
+       acc))
+   env
+   data-accesses))
+  (comment
+( tags-for-rule-string :Definitions "## Definitions
+                                          **Car** _is defined as a vehicle with 4 wheels._
+                                          **Hello** _hello_")
+(tags-for-rule-string :Definitions "## Definitions A **Car** _is defined as a vehnicle with 4 wheels._")
+    (resolve-forward-declaration env
+     ( tags-for-rule-string :Definitions "## Definitions
+                                          **Car**_is defined as a vehicle with 4 wheels._
+                                          **Hello** ")))
+
+(defn upsplice-data-access
+  [top-access bottom-access]
+  (vec (concat [:DataAccess]
+               (rest top-access)
+               (rest bottom-access))))
+
+(defn resolve-nested-forward-declaration
+  [env [_tag top-access & rest]]
+  ;; top-access is a data access representing a map,
+  ;; and rest is a seq of data accesses representing keys of that map.
+  ;; for each of rest, make a data access with top-access at the front (using concat)
+  ;; then feed it into resolve-forward-declaration.
+  (let [data-accesses (map #(upsplice-data-access top-access %) rest)]
+    (map #(resolve-clause-vec env %) data-accesses)))
+
+(comment
+  (resolve-clause-vec env
+                      (upsplice-data-access
+                       (tags-for-rule-string :DataAccess "**Car**")
+                       (tags-for-rule-string :DataAccess "**rear view camera**")))
+  (resolve-nested-forward-declaration
+   env
+   (tags-for-rule-string :NestedFwdDeclaration "A **Car** contains:
+        - **crash rating**
+    - **rear view camera**"))
+  (resolve-nested-forward-declaration
+   env
+   [:NestedFwdDeclaration
+    (tags-for-rule-string :DataAccess "**Car**")
+    (tags-for-rule-string :DataAccess "**crash rating**")
+    (tags-for-rule-string :DataAccess "**rear view camera**")])
+  )
+
+
+
 (defn resolve-clause-vec
   "The first element of the clause vec is a keyword denoting its parse rule.
   Every parse rule corresponds to a resolve-[clause-name] fn."
   [env clause]
   ((match (first clause)
-     :Symbol              resolve-symbol
-     :Integer             resolve-integer
-     :NumComparison       resolve-num-comparison
-     :DataAccess          resolve-data-access
-     :RuleNumComparison   resolve-rule-num-comparison
-     :RuleExistence       resolve-rule-existence
-     :RuleExistenceNum    resolve-rule-existence-num)
+  	 :ForwardDeclaration   resolve-forward-declaration
+  	 :NestedFwdDeclaration resolve-nested-forward-declaration
+     :Symbol               resolve-symbol
+     :Integer              resolve-integer
+     :NumComparison        resolve-num-comparison
+     :DataAccess           resolve-data-access
+     :RuleNumComparison    resolve-rule-num-comparison
+     :RuleExistence        resolve-rule-existence
+     :RuleExistenceNum     resolve-rule-existence-num)
    env clause))
   (comment
     (resolve-clause-vec env [:Symbol "**Car**"])
