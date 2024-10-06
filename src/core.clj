@@ -7,19 +7,22 @@
 
 ;; Target reg
 
-"# Car safety regulation
+(def target-reg-text
+  "# Car safety regulation
 
- ## Definitions
- A **Car** _is a vehicle with four wheels._
- A **Car** contains:
-   - **antilock brakes** _, which increases safety in high-speed situations._
-   - a **rear-view camera** _, which increases safety in low-speed situations._
-   - a **crash rating** _, on a scale of 1-5, assigned by the NTSB._
+  ## Definitions
 
- ## Rules
- A **Car** must have 2 of **antilock brakes**, **electronic-stability-control**, and a **rear view mirror** _in order to promote balanced safety_.
- _Additionally, the Province requires that cars perform as expected in crashes. There are two measures, both of which must be met._
- The **Car**'s **crash rating** must be greater than 3. Also, the **Car** must have a **driver side airbag**."
+  A **Car** _is a vehicle with four wheels._
+  A **Car** contains:
+    - **antilock brakes** _, which increases safety in high-speed situations._
+    - a **rear-view camera** _, which increases safety in low-speed situations._
+    - a **crash rating** _, on a scale of 1-5, assigned by the NTSB._
+
+  ## Rules
+
+  A **Car** must have 2 of **antilock brakes**, **electronic-stability-control**, and a **rear view mirror** _in order to promote balanced safety_.
+  _Additionally, the Province requires that cars perform as expected in crashes. There are two measures, both of which must be met._
+  The **Car**'s **crash rating** must be greater than 3. Also, the **Car** must have a **driver side airbag**.")
 
 ;; Default environment
 
@@ -31,7 +34,7 @@
                  :rear-view-camera             true
                  :crash-rating                 5
                  :second-row                   {:airbags        "I have airbags"
-                                                :shoulder_belts false}}}})
+                                                :shoulder-belts false}}}})
 (def env (atom {}))
 (defn reset-env [] (reset! env test-env))
 (reset-env)
@@ -44,12 +47,13 @@
 
 (def car-reg
   (insta/parser
-   "<Reg>                        = Headline Definitions <'## Rules'> Rule*
-    <Headline>                   = <'# '> <Symbol>
-    Definitions                  = <'## Definitions'> ForwardDeclaration+
+   "<Reg>                        = Headline Definitions Rules
+    <Headline>                   = <'# '> <Word*>
+    <Definitions>                = <'## Definitions'> ForwardDeclaration+
+    <Rules>                      = <'## Rules'> Rule+
 
-    <ForwardDeclaration>         = DataAccess <' '?>
-    NestedFwdDeclaration         = DataAccess <' contains:'> NestedFwdDeclarationSubkey+
+    <ForwardDeclaration>         = DataAccess | NestedFwdDeclaration
+    NestedFwdDeclaration         = DataAccess <' contains: '> NestedFwdDeclarationSubkey+
     <NestedFwdDeclarationSubkey> = <'- '> DataAccess
 
     Def                          = <'This regulation concerns '> DefSymbol <'.'>
@@ -67,6 +71,7 @@
     DataAccess                    = Symbol | (Symbol SubKeyAccess)
     <SubKeyAccess>                = <'\\'s'> Symbol (SubKeyAccess)*
     Integer                       = #'-?\\d+'
+    Word                          = #'[a-zA-Z]*'
     Symbol                        = #'\\*\\*[a-zA-Z -]*\\*\\*'
     <DefSymbol>                   = Symbol"
    :auto-whitespace whitespace))
@@ -83,17 +88,17 @@
 (def code-comment #"_.*?_")
 
 (def replacement-regexes
-  [hanging-a
+  [comma
+   hanging-a
    hanging-the
    hanging-and
    hanging-also
-   comma
    code-comment])
 
 (defn cleanup
   [input-str]
   (let [cleaned-except-for-spacing
-        (reduce #(str/replace %1 %2 "")
+        (reduce #(str/replace %1 %2 " ")
                 input-str
                 replacement-regexes)]
     (str/replace cleaned-except-for-spacing multi-space " ")))
@@ -112,6 +117,17 @@
 (comment
   (tags-for-rule-string :RuleExistence "_This car is a car_ The **Car** must_must have_ have **antilock brakes**.")
   (tags-for-rule-string :RuleExistence "**Car** must have **Antilock brakes**."))
+
+(comment
+ target-reg-text
+	(cleanup target-reg-text)
+  (parse-str target-reg-text)
+  (tags-for-rule-string :Headline "# sar safety regulations")
+  (tags-for-rule-string :Definitions "## Definitions **Car**")
+  (tags-for-rule-string :Definitions "## Definitions **Car** contains: - **antilock brakes** - **rear-view camera** - **crash rating**")
+  (tags-for-rule-string :Definitions "## Definitions **Car** **Car** contains: - **antilock brakes** - **rear-view camera** - **crash rating**")
+  )
+
 
 (defn resolve-symbol
   [_env [_symbol-key keystr]]
