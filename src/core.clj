@@ -23,15 +23,18 @@
 
 ;; Default environment
 
-(def env
+(def test-env
   {:errors []
-   :car {:driver-side-airbag           true
-         :antilock-brakes              true
-         :electronic-stability-control true
-         :rear-view-camera             true
-         :crash-rating                 5
-         :second-row                   {:airbags        "I have airbags"
-                                        :shoulder_belts false}}})
+   :data {:car  {:driver-side-airbag           true
+                 :antilock-brakes              true
+                 :electronic-stability-control true
+                 :rear-view-camera             true
+                 :crash-rating                 5
+                 :second-row                   {:airbags        "I have airbags"
+                                                :shoulder_belts false}}}})
+(def env (atom {}))
+(defn reset-env [] (reset! env test-env))
+(reset-env)
 
 ;; Parser
 
@@ -122,9 +125,10 @@
 
 (defn resolve-data-access
   [env [_tag head & rest]]
-  (if (empty? rest)
-    (get env (resolve-clause-vec env head))
-    (get-in env (map #(resolve-clause-vec env %) (cons head rest)))))
+  (let [envmap (:data @env)]
+    (if (empty? rest)
+      (get envmap (resolve-clause-vec env head))
+      (get-in envmap (map #(resolve-clause-vec env %) (cons head rest))))))
 (comment
   (resolve-data-access env (tags-for-rule-string :DataAccess "**Car**"))
   (resolve-data-access env (tags-for-rule-string :DataAccess "**Car**'s **second row**"))
@@ -192,9 +196,9 @@
   (let [check-declaration (fn [acc x]
                             (if
                              (nil? (resolve-clause-vec env x))
-                              (assoc acc :errors
+                              (swap! acc assoc :errors
                                      (cons (forward-declaration-error-string x)
-                                           (:errors acc)))
+                                           (:errors @acc)))
                               acc))]
     (reduce check-declaration env data-accesses)))
 (comment
@@ -206,7 +210,6 @@
                                (tags-for-rule-string :Definitions "## Definitions
                                           **Car**_is defined as a vehicle with 4 wheels._
                                           **Hello** ")))
-
 (defn upsplice-data-access
   [top-access bottom-access]
   (vec (concat [:DataAccess]
