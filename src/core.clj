@@ -1,6 +1,6 @@
 (ns core
   (:require [instaparse.core :as insta]
-  					[clojure.core.match :refer [match]]
+            [clojure.core.match :refer [match]]
             [clojure.string :as str]))
 
 (declare resolve-clause-vec)
@@ -31,13 +31,13 @@
          :rear-view-camera             true
          :crash-rating                 5
          :second-row                   {:airbags        "I have airbags"
-                                        :shoulder_belts false }}})
+                                        :shoulder_belts false}}})
 
 ;; Parser
 
 (def whitespace
   (insta/parser
-    "whitespace = #'\\s+'"))
+   "whitespace = #'\\s+'"))
 
 (def car-reg
   (insta/parser
@@ -105,11 +105,10 @@
 
 (defn tags-for-rule-string
   [start-tag rule-str]
-    (parse-str-with-rule-tag rule-str start-tag))
-  (comment
-    (tags-for-rule-string :RuleExistence "_This car is a car_ The **Car** must_must have_ have **antilock brakes**." )
-    (tags-for-rule-string :RuleExistence "**Car** must have **Antilock brakes**." )
-    )
+  (parse-str-with-rule-tag rule-str start-tag))
+(comment
+  (tags-for-rule-string :RuleExistence "_This car is a car_ The **Car** must_must have_ have **antilock brakes**.")
+  (tags-for-rule-string :RuleExistence "**Car** must have **Antilock brakes**."))
 
 (defn resolve-symbol
   [_env [_symbol-key keystr]]
@@ -118,29 +117,27 @@
       (str/replace " " "-")
       str/lower-case
       keyword))
-  (comment
-    (resolve-symbol env [:Symbol "**Car**"]))
+(comment
+  (resolve-symbol env [:Symbol "**Car**"]))
 
 (defn resolve-data-access
   [env [_tag head & rest]]
   (if (empty? rest)
     (get env (resolve-clause-vec env head))
     (get-in env (map #(resolve-clause-vec env %) (cons head rest)))))
-  (comment
-    (resolve-data-access env (tags-for-rule-string :DataAccess "**Car**"))
-    (resolve-data-access env (tags-for-rule-string :DataAccess "**Car**'s **second row**"))
-    (tags-for-rule-string :DataAccess "**Car**'s **second row**")
-    )
+(comment
+  (resolve-data-access env (tags-for-rule-string :DataAccess "**Car**"))
+  (resolve-data-access env (tags-for-rule-string :DataAccess "**Car**'s **second row**"))
+  (tags-for-rule-string :DataAccess "**Car**'s **second row**"))
 
 (defn resolve-rule-existence
   [env [_tag data-access search-key]]
   (get (resolve-clause-vec env data-access)
        (resolve-clause-vec env search-key)))
-  (comment
-    (resolve-rule-existence env [:RuleExistence [:DataAccess [:Symbol "**Car**"] [:Symbol "**second row**"]] [:Symbol "**airbags**"]])
-    (resolve-rule-existence env (tags-for-rule-string :RuleExistence "The **Car** must have **antilock brakes**."))
-    (resolve-rule-existence env (tags-for-rule-string :RuleExistence "The **Car**'s **second row** must have **airbags**."))
-    )
+(comment
+  (resolve-rule-existence env [:RuleExistence [:DataAccess [:Symbol "**Car**"] [:Symbol "**second row**"]] [:Symbol "**airbags**"]])
+  (resolve-rule-existence env (tags-for-rule-string :RuleExistence "The **Car** must have **antilock brakes**."))
+  (resolve-rule-existence env (tags-for-rule-string :RuleExistence "The **Car**'s **second row** must have **airbags**.")))
 
 (defn resolve-num-comparison
   [_env [_tag [comparison]]]
@@ -159,19 +156,17 @@
   ((resolve-clause-vec env comparison)
    (resolve-clause-vec env data-access)
    (resolve-clause-vec env num)))
-  (comment
-    (tags-for-rule-string :RuleNumComparison "The **Car**'s **crash rating** must be greater than 3.")
-    (resolve-rule-num-comparison env (tags-for-rule-string :RuleNumComparison "The **Car**'s **crash rating** must be greater than 3."))
-    )
+(comment
+  (tags-for-rule-string :RuleNumComparison "The **Car**'s **crash rating** must be greater than 3.")
+  (resolve-rule-num-comparison env (tags-for-rule-string :RuleNumComparison "The **Car**'s **crash rating** must be greater than 3.")))
 
 (defn truthy?
   [x]
   (not (or (nil? x) (false? x))))
-  (comment
-    (truthy? 3)
-    (truthy? nil)
-    (truthy? false)
-    )
+(comment
+  (truthy? 3)
+  (truthy? nil)
+  (truthy? false))
 
 (defn resolve-rule-existence-num
   [env [_tag data-access num & access-key-symbols]]
@@ -182,12 +177,11 @@
          (filter truthy?)
          count
          (<= (resolve-integer env num)))))
-(comment
-  (resolve-rule-existence-num env
-   (tags-for-rule-string :RuleExistenceNum "The **Car** must have 2 of **superlock brakes**, **electronic stability control**, and **drivers side airbag**."))
-  (resolve-rule-existence-num env
-   (tags-for-rule-string :RuleExistenceNum "The **Car** must have 2 of **antilock brakes**, **electronic stability control**, and **drivers side airbag**."))
-  )
+  (comment
+    (resolve-rule-existence-num env
+                                (tags-for-rule-string :RuleExistenceNum "The **Car** must have 2 of **superlock brakes**, **electronic stability control**, and **drivers side airbag**."))
+    (resolve-rule-existence-num env
+                                (tags-for-rule-string :RuleExistenceNum "The **Car** must have 2 of **antilock brakes**, **electronic stability control**, and **drivers side airbag**.")))
 
 (defn forward-declaration-error-string
   [data-access]
@@ -195,26 +189,23 @@
 
 (defn resolve-forward-declaration
   [env [_tag & data-accesses]]
-  (reduce
-   (fn [acc x]
-     (if
-      (nil? (resolve-clause-vec env x))
-       (assoc acc :errors
-              (cons (forward-declaration-error-string x)
-                    (:errors acc)))
-       acc))
-   env
-   data-accesses))
-  (comment
-    (tags-for-rule-string :Definitions "## Definitions
+  (let [check-declaration (fn [acc x]
+                            (if
+                             (nil? (resolve-clause-vec env x))
+                              (assoc acc :errors
+                                     (cons (forward-declaration-error-string x)
+                                           (:errors acc)))
+                              acc))]
+    (reduce check-declaration env data-accesses)))
+(comment
+  (tags-for-rule-string :Definitions "## Definitions
                                           **Car** _is defined as a vehicle with 4 wheels._
                                           **Hello** _hello_")
-    (tags-for-rule-string :Definitions "## Definitions A **Car** _is defined as a vehnicle with 4 wheels._")
-    (resolve-forward-declaration env
-                                 (tags-for-rule-string :Definitions "## Definitions
+  (tags-for-rule-string :Definitions "## Definitions A **Car** _is defined as a vehnicle with 4 wheels._")
+  (resolve-forward-declaration env
+                               (tags-for-rule-string :Definitions "## Definitions
                                           **Car**_is defined as a vehicle with 4 wheels._
-                                          **Hello** "))
-    )
+                                          **Hello** ")))
 
 (defn upsplice-data-access
   [top-access bottom-access]
@@ -237,14 +228,13 @@
                        (tags-for-rule-string :DataAccess "**rear view camera**")))
   (resolve-nested-forward-declaration env
                                       (tags-for-rule-string :NestedFwdDeclaration "A **Car** contains:
-                                        - **crash rating**
-                                        - **rear view camera**"))
+                                          - **crash rating**
+                                          - **rear view camera**"))
   (resolve-nested-forward-declaration env
                                       [:NestedFwdDeclaration
                                        (tags-for-rule-string :DataAccess "**Car**")
                                        (tags-for-rule-string :DataAccess "**crash rating**")
-                                       (tags-for-rule-string :DataAccess "**rear view camera**")])
-  )
+                                       (tags-for-rule-string :DataAccess "**rear view camera**")]))
 
 
 (defn resolve-clause-vec
@@ -252,8 +242,8 @@
   Every parse rule corresponds to a resolve-[clause-name] fn."
   [env clause]
   ((match (first clause)
-  	 :ForwardDeclaration   resolve-forward-declaration
-  	 :NestedFwdDeclaration resolve-nested-forward-declaration
+     :ForwardDeclaration   resolve-forward-declaration
+     :NestedFwdDeclaration resolve-nested-forward-declaration
      :Symbol               resolve-symbol
      :Integer              resolve-integer
      :NumComparison        resolve-num-comparison
@@ -262,8 +252,7 @@
      :RuleExistence        resolve-rule-existence
      :RuleExistenceNum     resolve-rule-existence-num)
    env clause))
-  (comment
-    (resolve-clause-vec env [:Symbol "**Car**"])
-    (resolve-clause-vec env (tags-for-rule-string :DataAccess "**Car**"))
-    (resolve-clause-vec env (tags-for-rule-string :DataAccess "**Car**'s **second row**"))
-    )
+(comment
+  (resolve-clause-vec env [:Symbol "**Car**"])
+  (resolve-clause-vec env (tags-for-rule-string :DataAccess "**Car**"))
+  (resolve-clause-vec env (tags-for-rule-string :DataAccess "**Car**'s **second row**")))
