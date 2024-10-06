@@ -177,11 +177,11 @@
          (filter truthy?)
          count
          (<= (resolve-integer env num)))))
-  (comment
-    (resolve-rule-existence-num env
-                                (tags-for-rule-string :RuleExistenceNum "The **Car** must have 2 of **superlock brakes**, **electronic stability control**, and **drivers side airbag**."))
-    (resolve-rule-existence-num env
-                                (tags-for-rule-string :RuleExistenceNum "The **Car** must have 2 of **antilock brakes**, **electronic stability control**, and **drivers side airbag**.")))
+(comment
+  (resolve-rule-existence-num env
+                              (tags-for-rule-string :RuleExistenceNum "The **Car** must have 2 of **superlock brakes**, **electronic stability control**, and **drivers side airbag**."))
+  (resolve-rule-existence-num env
+                              (tags-for-rule-string :RuleExistenceNum "The **Car** must have 2 of **antilock brakes**, **electronic stability control**, and **drivers side airbag**.")))
 
 (defn forward-declaration-error-string
   [data-access]
