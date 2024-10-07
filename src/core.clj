@@ -27,6 +27,7 @@
 
 (def test-env
   {:errors []
+   :warnings []
    :data {:car  {:driver-side-airbag           true
                  :antilock-brakes              true
                  :electronic-stability-control true
@@ -133,15 +134,29 @@
 
 (defn make-error-record
   [ctx clause-vec]
+  (println "error record for " clause-vec)
   {:clause-num (:clause-num ctx)
    :section (:section ctx)
    :clause-vec clause-vec})
+
+(defn make-warning-record
+  [ctx clause-vec val]
+  {:clause-num (:clause-num ctx)
+   :section (:section ctx)
+   :clause-vec clause-vec
+   :value val})
 
 (defn false-with-env-error
   [env ctx clause-vec]
   (swap! env assoc :errors (cons (make-error-record ctx clause-vec)
                                  (:errors @env)))
   false)
+
+(defn pass-value-with-env-warning
+  [env ctx clause-vec val]
+  (swap! env assoc :warnings (cons (make-warning-record ctx clause-vec val)
+                                  (:warnings @env)))
+  val)
 
 
 (defn resolve-symbol
@@ -155,53 +170,56 @@
   (resolve-symbol env 0 [:Symbol "**Car**"]))
 
 (defn resolve-data-access
-  [env ctx [_tag head & rest]]
-  (let [envmap (:data @env)]
-    (if (empty? rest)
-      (get envmap (resolve-clause-vec env ctx head))
-      (get-in envmap (map #(resolve-clause-vec env ctx %) (cons head rest))))))
+  [env ctx [_tag head & rest :as clause-vec]]
+  (let [envmap (:data @env)
+        retrieved (if (empty? rest)
+                    (get envmap (resolve-clause-vec env ctx head))
+                    (get-in envmap (map #(resolve-clause-vec env ctx %) (cons head rest))))]
+    (if retrieved retrieved (pass-value-with-env-warning env ctx clause-vec retrieved))))
 (comment
   (resolve-data-access env 0 (tags-for-rule-string :DataAccess "**Car**"))
   (resolve-data-access env 0 (tags-for-rule-string :DataAccess "**Car**'s **second row**"))
   (tags-for-rule-string :DataAccess "**Car**'s **second row**"))
 
 (defn resolve-rule-existence
-  [env ctx [_tag data-access search-key]]
-  (get (resolve-clause-vec env ctx data-access)
-       (resolve-clause-vec env ctx search-key)))
+  [env ctx [_tag data-access search-key :as clause-vec]]
+  (let [res (get (resolve-clause-vec env ctx data-access)
+                 (resolve-clause-vec env ctx search-key))]
+    (if res res (false-with-env-error env ctx clause-vec))))
 (comment
   (resolve-rule-existence env 0 [:RuleExistence [:DataAccess [:Symbol "**Car**"] [:Symbol "**second row**"]] [:Symbol "**airbags**"]])
   (resolve-rule-existence env 0 (tags-for-rule-string :RuleExistence "The **Car** must have **antilock brakes**."))
   (resolve-rule-existence env 0 (tags-for-rule-string :RuleExistence "The **Car**'s **second row** must have **airbags**.")))
 
 (defn resolve-num-comparison
-  [_env _ctx [_tag [comparison]]]
+  [env ctx [_tag [comparison] :as clause-vec]]
   (match comparison
     :NCLT <
     :NCEq =
-    :NCGT >))
+    :NCGT >
+    :else (false-with-env-error env ctx clause-vec)))
 
 (defn resolve-integer
   [env ctx [_ int-str :as clause-vec]]
   (let [res (parse-long int-str)]
     (if res
-      true
+      res
       (false-with-env-error env ctx clause-vec))))
 
 (defn resolve-rule-num-comparison
   "Numeric comparison of two values, the first being data."
   [env ctx [_ data-access comparison num :as clause-vec]]
+  (println "got to rule-num-comparison with clause " clause-vec)
   (let [comparison-result
         ((resolve-clause-vec env ctx comparison)
          (resolve-clause-vec env ctx data-access)
          (resolve-clause-vec env ctx num))]
     (if comparison-result
       true
-      (do (false-with-env-error env ctx clause-vec)
-          false))))
+      (false-with-env-error env ctx clause-vec))))
 (comment
   (let [vec
-        [:RuleNumComparison [:DataAccess [:Symbol "**Car**"] [:Symbol "**crash rating**"]] [:NumComparison [:NCGT]] [:Integer "3"]]
+        [:RuleNumComparison [:DataAccess [:Symbol "**Car**"] [:Symbol "**crash rating**"]] [:NumComparison [:NCGT]] [:Integer "2"]]
         at (atom {:data {:car {:crash-rating 2}}})
         ctx {:clause-num 1
              :section :rules}]
@@ -293,7 +311,7 @@
 (defn resolve-numbered-rule-or-definition-clause
   [env ctx [_tag clause-num-vec & rest]]
   (let [new-ctx (assoc ctx :clause-num (resolve-clause-vec env nil clause-num-vec))]
-    (map #(resolve-clause-vec env new-ctx %) rest)))
+    (doall (map #(resolve-clause-vec env new-ctx %) rest))))
 
 (defn resolve-numbered-definition
   [env ctx vec]
@@ -305,12 +323,15 @@
 
 (defn resolve-regulation
   [env ctx [_tag & rest]]
+  (reset-env)
   (->> rest
        (map #(resolve-clause-vec env ctx %))
-       doall))
+       doall)
+  @env)
 
 (comment
  (reset-env)
+ (+ 1 2)
 	(parse-str target-reg-text)
   (resolve-clause-vec env {} (parse-str target-reg-text))
   @env
@@ -321,6 +342,7 @@
   "The first element of the clause vec is a keyword denoting its parse rule.
   Every parse rule corresponds to a resolve-[clause-name] fn."
   [env ctx clause]
+  (println "parsing " clause)
   ((match (first clause)
   	 :Regulation           resolve-regulation
      :ForwardDeclaration   resolve-forward-declaration
@@ -340,3 +362,4 @@
   (resolve-clause-vec env {} [:Symbol "**Car**"])
   (resolve-clause-vec env {} (tags-for-rule-string :DataAccess "**Car**"))
   (resolve-clause-vec env {} (tags-for-rule-string :DataAccess "**Car**'s **second row**")))
+
