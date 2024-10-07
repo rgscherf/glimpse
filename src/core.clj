@@ -7,31 +7,37 @@
 
 ;; Target reg
 
-"# Car safety regulation
+(def target-reg-text
+  "# Car safety regulation
 
- ## Definitions
- A **Car** _is a vehicle with four wheels._
- A **Car** contains:
-   - **antilock brakes** _, which increases safety in high-speed situations._
-   - a **rear-view camera** _, which increases safety in low-speed situations._
-   - a **crash rating** _, on a scale of 1-5, assigned by the NTSB._
+  ## Definitions
 
- ## Rules
- A **Car** must have 2 of **antilock brakes**, **electronic-stability-control**, and a **rear view mirror** _in order to promote balanced safety_.
- _Additionally, the Province requires that cars perform as expected in crashes. There are two measures, both of which must be met._
- The **Car**'s **crash rating** must be greater than 3. Also, the **Car** must have a **driver side airbag**."
+  1. A **Car** _is a vehicle with four wheels._
+  2. A **Car** contains:
+    - **antilock brakes** _, which increases safety in high-speed situations._
+    - a **rear-view camera** _, which increases safety in low-speed situations._
+    - a **crash rating** _, on a scale of 1-5, assigned by the NTSB._
+
+  ## Rules
+
+  3. A **Car** must have 2 of **antilock brakes**, **electronic-stability-control**, and a **rear view mirror** _in order to promote balanced safety_.
+  4. _Additionally, the Province requires that cars perform as expected in crashes. There are two measures, both of which must be met._ The **Car**'s **crash rating** must be greater than 3. Also, the **Car** must have a **driver side airbag**.")
 
 ;; Default environment
 
-(def env
+(def test-env
   {:errors []
-   :car {:driver-side-airbag           true
-         :antilock-brakes              true
-         :electronic-stability-control true
-         :rear-view-camera             true
-         :crash-rating                 5
-         :second-row                   {:airbags        "I have airbags"
-                                        :shoulder_belts false}}})
+   :warnings []
+   :data {:car  {:driver-side-airbag           true
+                 :antilock-brakes              true
+                 :electronic-stability-control true
+                 :rear-view-camera             true
+                 :crash-rating                 2
+                 :second-row                   {:airbags        "I have airbags"
+                                                :shoulder-belts false}}}})
+(def env (atom {}))
+(defn reset-env [] (reset! env test-env))
+(reset-env)
 
 ;; Parser
 
@@ -41,12 +47,17 @@
 
 (def car-reg
   (insta/parser
-   "<Reg>                        = Headline Definitions <'## Rules'> Rule*
-    <Headline>                   = <'# '> <Symbol>
-    Definitions                  = <'## Definitions'> ForwardDeclaration+
+   "Regulation                   = Headline Definitions Rules
+    <Headline>                   = <'# '> <Word*>
+    <Definitions>                = <'## Definitions'> DefinitionClause+
+    <Rules>                      = <'## Rules'> RuleClause+
 
-    <ForwardDeclaration>         = DataAccess <' '?>
-    NestedFwdDeclaration         = DataAccess <' contains:'> NestedFwdDeclarationSubkey+
+    ClauseNum = Integer <'. '>
+    RuleClause = ClauseNum Rule+
+    DefinitionClause = ClauseNum ForwardDeclaration+
+
+    <ForwardDeclaration>         = DataAccess | NestedFwdDeclaration
+    NestedFwdDeclaration         = DataAccess <' contains: '> NestedFwdDeclarationSubkey+
     <NestedFwdDeclarationSubkey> = <'- '> DataAccess
 
     Def                          = <'This regulation concerns '> DefSymbol <'.'>
@@ -64,6 +75,7 @@
     DataAccess                    = Symbol | (Symbol SubKeyAccess)
     <SubKeyAccess>                = <'\\'s'> Symbol (SubKeyAccess)*
     Integer                       = #'-?\\d+'
+    Word                          = #'[a-zA-Z]*'
     Symbol                        = #'\\*\\*[a-zA-Z -]*\\*\\*'
     <DefSymbol>                   = Symbol"
    :auto-whitespace whitespace))
@@ -80,17 +92,17 @@
 (def code-comment #"_.*?_")
 
 (def replacement-regexes
-  [hanging-a
+  [comma
+   hanging-a
    hanging-the
    hanging-and
    hanging-also
-   comma
    code-comment])
 
 (defn cleanup
   [input-str]
   (let [cleaned-except-for-spacing
-        (reduce #(str/replace %1 %2 "")
+        (reduce #(str/replace %1 %2 " ")
                 input-str
                 replacement-regexes)]
     (str/replace cleaned-except-for-spacing multi-space " ")))
@@ -110,55 +122,112 @@
   (tags-for-rule-string :RuleExistence "_This car is a car_ The **Car** must_must have_ have **antilock brakes**.")
   (tags-for-rule-string :RuleExistence "**Car** must have **Antilock brakes**."))
 
+(comment
+ target-reg-text
+	(cleanup target-reg-text)
+  (parse-str target-reg-text)
+  (tags-for-rule-string :Headline "# sar safety regulations")
+  (tags-for-rule-string :Definitions "## Definitions **Car**")
+  (tags-for-rule-string :Definitions "## Definitions **Car** contains: - **antilock brakes** - **rear-view camera** - **crash rating**")
+  (tags-for-rule-string :Definitions "## Definitions **Car** **Car** contains: - **antilock brakes** - **rear-view camera** - **crash rating**")
+  )
+
+(defn make-error-record
+  [ctx clause-vec]
+  (println "error record for " clause-vec)
+  {:clause-num (:clause-num ctx)
+   :section (:section ctx)
+   :clause-vec clause-vec})
+
+(defn make-warning-record
+  [ctx clause-vec val]
+  {:clause-num (:clause-num ctx)
+   :section (:section ctx)
+   :clause-vec clause-vec
+   :value val})
+
+(defn false-with-env-error
+  [env ctx clause-vec]
+  (swap! env assoc :errors (cons (make-error-record ctx clause-vec)
+                                 (:errors @env)))
+  false)
+
+(defn pass-value-with-env-warning
+  [env ctx clause-vec val]
+  (swap! env assoc :warnings (cons (make-warning-record ctx clause-vec val)
+                                  (:warnings @env)))
+  val)
+
+
 (defn resolve-symbol
-  [_env [_symbol-key keystr]]
+  [_env _ctx [_symbol-key keystr]]
   (-> keystr
       (str/replace "**" "")
       (str/replace " " "-")
       str/lower-case
       keyword))
 (comment
-  (resolve-symbol env [:Symbol "**Car**"]))
+  (resolve-symbol env 0 [:Symbol "**Car**"]))
 
 (defn resolve-data-access
-  [env [_tag head & rest]]
-  (if (empty? rest)
-    (get env (resolve-clause-vec env head))
-    (get-in env (map #(resolve-clause-vec env %) (cons head rest)))))
+  [env ctx [_tag head & rest :as clause-vec]]
+  (let [envmap (:data @env)
+        retrieved (if (empty? rest)
+                    (get envmap (resolve-clause-vec env ctx head))
+                    (get-in envmap (map #(resolve-clause-vec env ctx %) (cons head rest))))]
+    (if retrieved retrieved (pass-value-with-env-warning env ctx clause-vec retrieved))))
 (comment
-  (resolve-data-access env (tags-for-rule-string :DataAccess "**Car**"))
-  (resolve-data-access env (tags-for-rule-string :DataAccess "**Car**'s **second row**"))
+  (resolve-data-access env 0 (tags-for-rule-string :DataAccess "**Car**"))
+  (resolve-data-access env 0 (tags-for-rule-string :DataAccess "**Car**'s **second row**"))
   (tags-for-rule-string :DataAccess "**Car**'s **second row**"))
 
 (defn resolve-rule-existence
-  [env [_tag data-access search-key]]
-  (get (resolve-clause-vec env data-access)
-       (resolve-clause-vec env search-key)))
+  [env ctx [_tag data-access search-key :as clause-vec]]
+  (let [res (get (resolve-clause-vec env ctx data-access)
+                 (resolve-clause-vec env ctx search-key))]
+    (if res res (false-with-env-error env ctx clause-vec))))
 (comment
-  (resolve-rule-existence env [:RuleExistence [:DataAccess [:Symbol "**Car**"] [:Symbol "**second row**"]] [:Symbol "**airbags**"]])
-  (resolve-rule-existence env (tags-for-rule-string :RuleExistence "The **Car** must have **antilock brakes**."))
-  (resolve-rule-existence env (tags-for-rule-string :RuleExistence "The **Car**'s **second row** must have **airbags**.")))
+  (resolve-rule-existence env 0 [:RuleExistence [:DataAccess [:Symbol "**Car**"] [:Symbol "**second row**"]] [:Symbol "**airbags**"]])
+  (resolve-rule-existence env 0 (tags-for-rule-string :RuleExistence "The **Car** must have **antilock brakes**."))
+  (resolve-rule-existence env 0 (tags-for-rule-string :RuleExistence "The **Car**'s **second row** must have **airbags**.")))
 
 (defn resolve-num-comparison
-  [_env [_tag [comparison]]]
+  [env ctx [_tag [comparison] :as clause-vec]]
   (match comparison
     :NCLT <
     :NCEq =
-    :NCGT >))
+    :NCGT >
+    :else (false-with-env-error env ctx clause-vec)))
 
 (defn resolve-integer
-  [_env [_ int-str]]
-  (parse-long int-str))
+  [env ctx [_ int-str :as clause-vec]]
+  (let [res (parse-long int-str)]
+    (if res
+      res
+      (false-with-env-error env ctx clause-vec))))
 
 (defn resolve-rule-num-comparison
   "Numeric comparison of two values, the first being data."
-  [env [_ data-access comparison num]]
-  ((resolve-clause-vec env comparison)
-   (resolve-clause-vec env data-access)
-   (resolve-clause-vec env num)))
+  [env ctx [_ data-access comparison num :as clause-vec]]
+  (println "got to rule-num-comparison with clause " clause-vec)
+  (let [comparison-result
+        ((resolve-clause-vec env ctx comparison)
+         (resolve-clause-vec env ctx data-access)
+         (resolve-clause-vec env ctx num))]
+    (if comparison-result
+      true
+      (false-with-env-error env ctx clause-vec))))
 (comment
+  (let [vec
+        [:RuleNumComparison [:DataAccess [:Symbol "**Car**"] [:Symbol "**crash rating**"]] [:NumComparison [:NCGT]] [:Integer "2"]]
+        at (atom {:data {:car {:crash-rating 2}}})
+        ctx {:clause-num 1
+             :section :rules}]
+    (resolve-rule-num-comparison at ctx vec)
+    @at)
   (tags-for-rule-string :RuleNumComparison "The **Car**'s **crash rating** must be greater than 3.")
-  (resolve-rule-num-comparison env (tags-for-rule-string :RuleNumComparison "The **Car**'s **crash rating** must be greater than 3.")))
+  (resolve-rule-num-comparison env 0 (tags-for-rule-string :RuleNumComparison "The **Car**'s **crash rating** must be greater than 3."))
+  )
 
 (defn truthy?
   [x]
@@ -169,44 +238,43 @@
   (truthy? false))
 
 (defn resolve-rule-existence-num
-  [env [_tag data-access num & access-key-symbols]]
-  (let [data-to-access (resolve-data-access env data-access)]
-    (->> access-key-symbols
-         (map #(resolve-symbol env %))
-         (map #(get data-to-access %))
-         (filter truthy?)
-         count
-         (<= (resolve-integer env num)))))
+  [env ctx [_tag data-access num & access-key-symbols :as this-vec]]
+  (let [data-to-access (resolve-data-access env ctx data-access)
+        result (->> access-key-symbols
+                    (map #(resolve-symbol env ctx %))
+                    (map #(get data-to-access %))
+                    (filter truthy?)
+                    count
+                    (<= (resolve-integer env ctx num)))]
+    (if result
+      true
+      (false-with-env-error env ctx this-vec))))
 (comment
-  (resolve-rule-existence-num env
+	(reset-env)
+  @env
+  (resolve-rule-existence-num env 0
                               (tags-for-rule-string :RuleExistenceNum "The **Car** must have 2 of **superlock brakes**, **electronic stability control**, and **drivers side airbag**."))
-  (resolve-rule-existence-num env
+  (resolve-rule-existence-num env 0
                               (tags-for-rule-string :RuleExistenceNum "The **Car** must have 2 of **antilock brakes**, **electronic stability control**, and **drivers side airbag**.")))
 
-(defn forward-declaration-error-string
-  [data-access]
-  (str "Forward declaration for " data-access " in Definitions, but that structure wasn't found in the env!"))
-
 (defn resolve-forward-declaration
-  [env [_tag & data-accesses]]
+  [env ctx [_tag & data-accesses]]
   (let [check-declaration (fn [acc x]
                             (if
-                             (nil? (resolve-clause-vec env x))
-                              (assoc acc :errors
-                                     (cons (forward-declaration-error-string x)
-                                           (:errors acc)))
-                              acc))]
+                             (nil? (resolve-clause-vec env ctx x))
+                             (do (false-with-env-error env ctx x) acc)
+                             acc))]
     (reduce check-declaration env data-accesses)))
+
 (comment
   (tags-for-rule-string :Definitions "## Definitions
                                           **Car** _is defined as a vehicle with 4 wheels._
                                           **Hello** _hello_")
   (tags-for-rule-string :Definitions "## Definitions A **Car** _is defined as a vehnicle with 4 wheels._")
-  (resolve-forward-declaration env
+  (resolve-forward-declaration env {}
                                (tags-for-rule-string :Definitions "## Definitions
                                           **Car**_is defined as a vehicle with 4 wheels._
                                           **Hello** ")))
-
 (defn upsplice-data-access
   [top-access bottom-access]
   (vec (concat [:DataAccess]
@@ -214,36 +282,74 @@
                (rest bottom-access))))
 
 (defn resolve-nested-forward-declaration
-  [env [_tag top-access & rest]]
+  [env ctx [_tag top-access & rest]]
   ;; top-access is a data access representing a map,
   ;; and rest is a seq of data accesses representing keys of that map.
   ;; for each of rest, make a data access with top-access at the front (using concat)
   ;; then feed it into resolve-forward-declaration.
   (let [data-accesses (map #(upsplice-data-access top-access %) rest)]
-    (map #(resolve-clause-vec env %) data-accesses)))
+    (map #(resolve-clause-vec env ctx %) data-accesses)))
 (comment
-  (resolve-clause-vec env
+  (resolve-clause-vec env 0
                       (upsplice-data-access
                        (tags-for-rule-string :DataAccess "**Car**")
                        (tags-for-rule-string :DataAccess "**rear view camera**")))
-  (resolve-nested-forward-declaration env
+  (resolve-nested-forward-declaration env 0
                                       (tags-for-rule-string :NestedFwdDeclaration "A **Car** contains:
                                           - **crash rating**
                                           - **rear view camera**"))
-  (resolve-nested-forward-declaration env
+  (resolve-nested-forward-declaration env 0
                                       [:NestedFwdDeclaration
                                        (tags-for-rule-string :DataAccess "**Car**")
                                        (tags-for-rule-string :DataAccess "**crash rating**")
                                        (tags-for-rule-string :DataAccess "**rear view camera**")]))
 
+(defn resolve-clause-num
+  [env ctx [_tag int-clause]]
+  (resolve-clause-vec env ctx int-clause))
+
+(defn resolve-numbered-rule-or-definition-clause
+  [env ctx [_tag clause-num-vec & rest]]
+  (let [new-ctx (assoc ctx :clause-num (resolve-clause-vec env nil clause-num-vec))]
+    (doall (map #(resolve-clause-vec env new-ctx %) rest))))
+
+(defn resolve-numbered-definition
+  [env ctx vec]
+  (resolve-numbered-rule-or-definition-clause env (assoc ctx :section :definitions) vec))
+
+(defn resolve-numbered-rule
+  [env ctx vec]
+  (resolve-numbered-rule-or-definition-clause env (assoc ctx :section :rules) vec))
+
+(defn resolve-regulation
+  [env ctx [_tag & rest]]
+  (reset-env)
+  (->> rest
+       (map #(resolve-clause-vec env ctx %))
+       doall)
+  @env)
+
+(comment
+ (reset-env)
+ (+ 1 2)
+	(parse-str target-reg-text)
+  (resolve-clause-vec env {} (parse-str target-reg-text))
+  @env
+  (tags-for-rule-string :RuleClause "  4. _Additionally, the Province requires that cars perform as expected in crashes. There are two measures, both of which must be met._ The **Car**'s **crash rating** must be greater than 3. Also, the **Car** must have a **driver side airbg**.")
+  )
 
 (defn resolve-clause-vec
   "The first element of the clause vec is a keyword denoting its parse rule.
   Every parse rule corresponds to a resolve-[clause-name] fn."
-  [env clause]
+  [env ctx clause]
+  (println "parsing " clause)
   ((match (first clause)
+  	 :Regulation           resolve-regulation
      :ForwardDeclaration   resolve-forward-declaration
      :NestedFwdDeclaration resolve-nested-forward-declaration
+     :ClauseNum            resolve-clause-num
+     :DefinitionClause     resolve-numbered-definition
+     :RuleClause           resolve-numbered-rule
      :Symbol               resolve-symbol
      :Integer              resolve-integer
      :NumComparison        resolve-num-comparison
@@ -251,8 +357,9 @@
      :RuleNumComparison    resolve-rule-num-comparison
      :RuleExistence        resolve-rule-existence
      :RuleExistenceNum     resolve-rule-existence-num)
-   env clause))
+   env ctx clause))
 (comment
-  (resolve-clause-vec env [:Symbol "**Car**"])
-  (resolve-clause-vec env (tags-for-rule-string :DataAccess "**Car**"))
-  (resolve-clause-vec env (tags-for-rule-string :DataAccess "**Car**'s **second row**")))
+  (resolve-clause-vec env {} [:Symbol "**Car**"])
+  (resolve-clause-vec env {} (tags-for-rule-string :DataAccess "**Car**"))
+  (resolve-clause-vec env {} (tags-for-rule-string :DataAccess "**Car**'s **second row**")))
+
